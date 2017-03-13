@@ -1,0 +1,4 @@
+webhook_key: abcd
+clients:
+    - url: http://localhost:9995
+    - url: http://localhost:9996
