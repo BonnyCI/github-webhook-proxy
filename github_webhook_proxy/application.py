@@ -22,6 +22,7 @@ import sys
 import aiohttp
 import aiohttp.web
 import ipaddress
+import voluptuous
 import yaml
 
 from github_webhook_proxy import version
@@ -59,10 +60,10 @@ class GithubWebhookProxy:
         signature = request.headers.get('X-Hub-Signature')
 
         if key and not signature:
-            raise web.HTTPForbidden()
+            raise aiohttp.web.HTTPForbidden()
 
         elif signature and not key:
-            raise web.HTTPForbidden()
+            raise aiohttp.web.HTTPForbidden()
 
         elif key:
             digest, value = signature.split('=')
@@ -73,7 +74,7 @@ class GithubWebhookProxy:
             mac = hmac.new(key, msg=request.body, digestmod=hashlib.sha1)
 
             if not hmac.compare_digest(mac.hexdigest(), value):
-                raise web.HTTPForbidden()
+                raise aiohttp.web.HTTPForbidden()
 
     def validate_ip(self, request):
         # request_ip = ipaddress.ip_address(request.client_addr.decode('utf-8'))
@@ -114,7 +115,7 @@ class GithubWebhookProxy:
                                              return_exceptions=True)
 
         for resp in responses:
-            if isinstance(resp, client.ClientResponse):
+            if isinstance(resp, aiohttp.ClientResponse):
                 resp_text = await resp.text()
 
                 if resp.status == 200:
@@ -135,7 +136,10 @@ class GithubWebhookProxy:
 
     def load_config(self):
         with open(self.config_file, 'r') as f:
-            self.config = yaml.safe_load(f) or {}
+            config = yaml.safe_load(f) or {}
+
+        validate(config)
+        self.config = config
 
 
 def initialize_application(argv=None):
@@ -154,6 +158,20 @@ def initialize_application(argv=None):
         return
 
     return GithubWebhookProxy(opts.config)
+
+
+def validate(config):
+    client = voluptuous.Schema({
+        voluptuous.Required('url'): str,
+        'events': list([str])
+    }, extra=False)
+
+    s = voluptuous.Schema({
+        'webhook_key': str,
+        'clients': list([client]),
+    }, extra=False)
+
+    s(config)
 
 
 if __name__ == '__main__':
